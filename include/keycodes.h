@@ -350,6 +350,8 @@ extern const uint16_t keycode_to_hid[];
 #define IS_CONSUMER_KEYCODE(kc) (KC_AUDIO_MUTE <= (kc) && (kc) <= KC_LAUNCHPAD)
 #define IS_MOUSE_KEYCODE(kc)                                                   \
   (SP_MOUSE_BUTTON_1 <= (kc) && (kc) <= SP_MOUSE_BUTTON_5)
+#define IS_MOUSE_MOVE_KEYCODE(kc)                                              \
+  (SP_MOUSE_UP <= (kc) && (kc) <= SP_MOUSE_WHEEL_RIGHT)
 
 //--------------------------------------------------------------------+
 // Keycode Ranges

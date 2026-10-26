@@ -53,10 +53,15 @@ static hid_mouse_report_t mouse_report;
 // 3 = pan right
 static uint8_t mouse_move_state;
 static uint8_t mouse_wheel_state;
+// Physical key bound to each movement keycode (index = keycode -
+// SP_MOUSE_UP); 0xFF when unbound. Used for analog depth-based speed.
+static uint8_t mouse_move_key_map[8];
 static uint32_t mouse_last_tick;
+#if !MOUSEKEY_ANALOG_ENABLE
 static uint32_t mouse_move_start;
-static uint32_t mouse_wheel_start;
 static uint32_t mouse_move_steps;
+#endif
+static uint32_t mouse_wheel_start;
 static uint16_t mouse_move_accumulator;
 static uint16_t mouse_wheel_accumulator;
 static bool mouse_moving;
@@ -131,7 +136,51 @@ static void hid_send_hid_report(uint8_t starting_report_id) {
   }
 }
 
-void hid_init(void) {}
+void hid_init(void) { memset(mouse_move_key_map, 0xFF, sizeof(mouse_move_key_map)); }
+
+void hid_mouse_move_bind(uint8_t keycode, uint8_t key) {
+  if (keycode < SP_MOUSE_UP || keycode > SP_MOUSE_WHEEL_RIGHT)
+    return;
+  mouse_move_key_map[keycode - SP_MOUSE_UP] = key;
+}
+
+void hid_mouse_move_unbind(uint8_t keycode) {
+  if (keycode < SP_MOUSE_UP || keycode > SP_MOUSE_WHEEL_RIGHT)
+    return;
+  mouse_move_key_map[keycode - SP_MOUSE_UP] = 0xFF;
+}
+
+#if MOUSEKEY_ANALOG_ENABLE
+/**
+ * @brief Compute the cursor step for a movement keycode from key travel depth
+ *
+ * Speed scales linearly from 1x at the dead zone to MOUSEKEY_MAX_SPEED at the
+ * bottom of travel. Returns 0 inside the dead zone (no motion).
+ *
+ * @param keycode Mouse movement keycode
+ *
+ * @return Step size in counts, or 0 if the key is inside the dead zone
+ */
+static int16_t hid_mouse_analog_step(uint8_t keycode) {
+  const uint8_t idx = keycode - SP_MOUSE_UP;
+  const uint8_t key = mouse_move_key_map[idx];
+  uint16_t depth;
+  if (key == 0xFF || key >= NUM_KEYS)
+    // No binding (e.g. keycode injected by a tool): treat as fully pressed
+    depth = 255;
+  else
+    depth = key_matrix[key].distance;
+
+  if (depth < MOUSEKEY_ANALOG_DEAD_ZONE)
+    return 0;
+
+  const uint32_t above_dead_zone = (uint32_t)depth - MOUSEKEY_ANALOG_DEAD_ZONE;
+  const uint32_t span = 255u - (uint32_t)MOUSEKEY_ANALOG_DEAD_ZONE;
+  const uint32_t extra =
+      (uint32_t)(MOUSEKEY_MAX_SPEED - 1u) * above_dead_zone / span;
+  return MOUSEKEY_MOVE_DELTA * (1 + extra);
+}
+#endif
 
 void hid_keycode_add(uint8_t keycode) {
   switch (keycode) {
@@ -274,6 +323,32 @@ void hid_mouse_task(void) {
     dt = 100;
 
   if (move_active) {
+#if MOUSEKEY_ANALOG_ENABLE
+    // Analog mode: step size follows the bound key's travel depth. Speed is
+    // positional - press lightly for fine nudging, deeper to move faster.
+    if (!mouse_moving) {
+      mouse_moving = true;
+      mouse_move_accumulator = 0;
+    }
+    mouse_move_accumulator += dt;
+    while (mouse_move_accumulator >= MOUSEKEY_INTERVAL) {
+      mouse_move_accumulator -= MOUSEKEY_INTERVAL;
+      // Bit layout: 0 = up, 1 = down, 2 = left, 3 = right (HID y is
+      // positive downwards)
+      if (mouse_move_state & 0x01)
+        mouse_report.y =
+            hid_mouse_axis_add(mouse_report.y, -hid_mouse_analog_step(SP_MOUSE_UP));
+      if (mouse_move_state & 0x02)
+        mouse_report.y =
+            hid_mouse_axis_add(mouse_report.y, hid_mouse_analog_step(SP_MOUSE_DOWN));
+      if (mouse_move_state & 0x04)
+        mouse_report.x =
+            hid_mouse_axis_add(mouse_report.x, -hid_mouse_analog_step(SP_MOUSE_LEFT));
+      if (mouse_move_state & 0x08)
+        mouse_report.x =
+            hid_mouse_axis_add(mouse_report.x, hid_mouse_analog_step(SP_MOUSE_RIGHT));
+    }
+#else
     if (!mouse_moving) {
       // Start of a new movement: reset the acceleration state
       mouse_moving = true;
@@ -303,6 +378,7 @@ void hid_mouse_task(void) {
         mouse_move_steps++;
       }
     }
+#endif
   } else if (mouse_moving) {
     // Movement stopped: zero the axes once so the host sees the stop
     mouse_moving = false;

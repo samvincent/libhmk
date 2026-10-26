@@ -27,20 +27,41 @@ descriptor has a vertical wheel only, so `usb_descriptors.c` writes the mouse
 descriptor explicitly with an extra AC Pan axis, matching `hid_mouse_report_t`
 (buttons, x, y, wheel, pan).
 
-They behave like QMK's mouse keys: hold the key and the cursor accelerates
-linearly from 1x to `MOUSEKEY_MAX_SPEED` over `MOUSEKEY_TIME_TO_MAX` steps.
+They come in two flavors:
+
+### Analog depth control (default)
+
+The Hall-effect advantage: **speed follows key travel depth**. When a
+movement key is held, the cursor step size scales linearly from 1x at the
+dead zone to `MOUSEKEY_MAX_SPEED` at the bottom of travel, using the live
+per-key distance reported by the matrix. Press lightly for precise nudging,
+lean deeper to cross the screen, ease off to slow down instantly - no ramp
+to wait for. Rapid Trigger composes naturally: a quick light tap is a small,
+slow nudge.
+
+A small dead zone at the top of travel suppresses noise and accidental
+grazes: a held key shallower than `MOUSEKEY_ANALOG_DEAD_ZONE` produces no
+motion.
+
+### Time-based acceleration (fallback)
+
+Set `MOUSEKEY_ANALOG_ENABLE = 0` for classic QMK-style behavior: speed is
+independent of depth and accelerates linearly from 1x to `MOUSEKEY_MAX_SPEED`
+over `MOUSEKEY_TIME_TO_MAX` steps.
 
 ## Configuration (compile-time)
 
 All values have defaults and can be overridden in a keyboard's config:
 
 | Define | Default | Meaning |
-|--------|---------|---------|
-| `MOUSEKEY_DELAY` | 10 ms | Delay before movement starts after a key press |
+|--------|---------|---------------|
+| `MOUSEKEY_ANALOG_ENABLE` | 1 | Speed proportional to travel depth |
+| `MOUSEKEY_ANALOG_DEAD_ZONE` | 8 | Depth (0-255) below which a held key produces no motion |
 | `MOUSEKEY_INTERVAL` | 20 ms | Time between movement steps |
 | `MOUSEKEY_MOVE_DELTA` | 2 | Base step size in counts |
-| `MOUSEKEY_MAX_SPEED` | 10 | Maximum speed multiplier |
-| `MOUSEKEY_TIME_TO_MAX` | 40 | Steps until maximum speed is reached |
+| `MOUSEKEY_MAX_SPEED` | 10 | Speed multiplier at the bottom of travel |
+| `MOUSEKEY_DELAY` | 10 ms | (analog off) Delay before movement starts |
+| `MOUSEKEY_TIME_TO_MAX` | 40 | (analog off) Steps until maximum speed |
 | `MOUSEKEY_WHEEL_DELAY` | 10 ms | Delay before scrolling starts |
 | `MOUSEKEY_WHEEL_INTERVAL` | 50 ms | Time between scroll steps |
 
@@ -51,28 +72,17 @@ All values have defaults and can be overridden in a keyboard's config:
 - No acceleration-profile keycodes (`MS_ACL0/1/2`-style). The curve is fixed
   at compile time.
 
-## Roadmap: analog (Hall-effect) speed control
+## Tuning notes
 
-The current implementation is **binary**: a movement key is either held or
-not, and speed comes from time-based acceleration only. Key travel depth is
-ignored - which throws away the main advantage of a Hall-effect board.
-
-A follow-up could make speed proportional to key depth:
-
-- A mouse-movement binding contributes `direction x normalized_depth` to the
-  axis velocity each tick, instead of a fixed step.
-- Depth is taken from the per-key analog value with a small dead zone at the
-  top of travel (noise/graze protection) and a soft saturation curve near the
-  bottom (so bottoming out does not feel like a cliff).
-- Speed becomes positional rather than temporal: press lightly for precise
-  nudging, lean deeper to cross the screen, and ease off to slow instantly.
-  Rapid Trigger composes naturally with this (a quick light tap is a small,
-  slow nudge - no ramp to wait for).
-
-This requires deeper integration than keycodes: the mouse task must read live
-per-key analog values, and "mouse axis" is arguably a new advanced-key type
-rather than a plain keycode. The binary implementation ships first because it
-is verifiable without hardware; the analog mode is the natural v2.
+- The analog curve is currently **linear** in depth. If deep presses feel
+  abrupt near the bottom, a soft saturation curve (easing the last ~20% of
+  travel toward `MOUSEKEY_MAX_SPEED`) is the natural next tweak - kept out of
+  this change until the feel can be judged on hardware.
+- When a movement keycode is registered, the layout binds it to the physical
+  key so the mouse task can read its depth. If the same keycode is bound to
+  multiple keys, the most recent binding wins.
+- Keycodes injected without a physical key (e.g. by external tools) are
+  treated as fully pressed.
 
 ## Implementation notes
 
