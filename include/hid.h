@@ -18,6 +18,43 @@
 #include "common.h"
 
 //--------------------------------------------------------------------+
+// Mouse keys configuration (compile-time, see MOUSE_KEYS.md)
+//--------------------------------------------------------------------+
+
+#ifndef MOUSEKEY_DELAY
+#define MOUSEKEY_DELAY 10 // ms before movement starts after a key press
+#endif
+#ifndef MOUSEKEY_INTERVAL
+#define MOUSEKEY_INTERVAL 20 // ms between movement steps
+#endif
+#ifndef MOUSEKEY_MOVE_DELTA
+#define MOUSEKEY_MOVE_DELTA 2 // base step size in counts
+#endif
+#ifndef MOUSEKEY_MAX_SPEED
+#define MOUSEKEY_MAX_SPEED 10 // maximum speed multiplier
+#endif
+#ifndef MOUSEKEY_TIME_TO_MAX
+#define MOUSEKEY_TIME_TO_MAX 40 // movement steps until maximum speed
+#endif
+#ifndef MOUSEKEY_WHEEL_DELAY
+#define MOUSEKEY_WHEEL_DELAY 10 // ms before scrolling starts after a key press
+#endif
+#ifndef MOUSEKEY_WHEEL_INTERVAL
+#define MOUSEKEY_WHEEL_INTERVAL 50 // ms between scroll steps
+#endif
+
+// Speed proportional to key travel depth (the Hall-effect advantage). When
+// disabled, speed follows the time-based acceleration curve instead.
+#ifndef MOUSEKEY_ANALOG_ENABLE
+#define MOUSEKEY_ANALOG_ENABLE 1
+#endif
+// Travel depth (0-255) below which a held movement key produces no motion.
+// Guards against noise and accidental grazes on very light presses.
+#ifndef MOUSEKEY_ANALOG_DEAD_ZONE
+#define MOUSEKEY_ANALOG_DEAD_ZONE 8
+#endif
+
+//--------------------------------------------------------------------+
 // HID API
 //--------------------------------------------------------------------+
 
@@ -54,3 +91,36 @@ void hid_keycode_remove(uint8_t keycode);
  * @return None
  */
 void hid_send_reports(void);
+
+/**
+ * @brief Update and send mouse movement reports
+ *
+ * Generates cursor and scroll deltas for the currently held mouse movement
+ * keycodes (SP_MOUSE_UP..SP_MOUSE_WHEEL_RIGHT) and sends the mouse report if
+ * it changed. Call this once per main loop iteration.
+ *
+ * @return None
+ */
+void hid_mouse_task(void);
+
+/**
+ * @brief Associate a mouse movement keycode with a physical key
+ *
+ * Called by the layout when a movement keycode is registered, so that
+ * hid_mouse_task() can read the key's travel depth for analog speed control.
+ *
+ * @param keycode Mouse movement keycode (SP_MOUSE_UP..SP_MOUSE_WHEEL_RIGHT)
+ * @param key Physical key index
+ *
+ * @return None
+ */
+void hid_mouse_move_bind(uint8_t keycode, uint8_t key);
+
+/**
+ * @brief Clear the physical key association for a mouse movement keycode
+ *
+ * @param keycode Mouse movement keycode (SP_MOUSE_UP..SP_MOUSE_WHEEL_RIGHT)
+ *
+ * @return None
+ */
+void hid_mouse_move_unbind(uint8_t keycode);

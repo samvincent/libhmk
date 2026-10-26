@@ -269,6 +269,9 @@ void layout_register(uint8_t key, uint8_t keycode) {
 
   switch (keycode) {
   case HID_KEYCODE_RANGE:
+    if (IS_MOUSE_MOVE_KEYCODE(keycode))
+      // Bind the physical key so hid_mouse_task() can read its travel depth
+      hid_mouse_move_bind(keycode, key);
     hid_keycode_add(keycode);
     should_send_reports = true;
     break;
@@ -313,6 +316,8 @@ void layout_unregister(uint8_t key, uint8_t keycode) {
 
   switch (keycode) {
   case HID_KEYCODE_RANGE:
+    if (IS_MOUSE_MOVE_KEYCODE(keycode))
+      hid_mouse_move_unbind(keycode);
     hid_keycode_remove(keycode);
     should_send_reports = true;
     break;

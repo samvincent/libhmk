@@ -80,10 +80,58 @@ static const uint8_t desc_keyboard_report[] = {
 };
 
 // HID report descriptor for other HID interfaces
+// The mouse descriptor is written out explicitly instead of using
+// TUD_HID_REPORT_DESC_MOUSE so that it includes a horizontal wheel (AC Pan)
+// axis, matching hid_mouse_report_t (buttons, x, y, wheel, pan).
 static const uint8_t desc_hid_report[] = {
     TUD_HID_REPORT_DESC_SYSTEM_CONTROL(HID_REPORT_ID(REPORT_ID_SYSTEM_CONTROL)),
     TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(REPORT_ID_CONSUMER_CONTROL)),
-    TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(REPORT_ID_MOUSE)),
+
+    /* Mouse (with horizontal wheel) */
+    HID_USAGE_PAGE(HID_USAGE_PAGE_DESKTOP),
+    HID_USAGE(HID_USAGE_DESKTOP_MOUSE),
+    HID_COLLECTION(HID_COLLECTION_APPLICATION),
+    HID_REPORT_ID(REPORT_ID_MOUSE)
+    HID_USAGE(HID_USAGE_DESKTOP_POINTER),
+    HID_COLLECTION(HID_COLLECTION_PHYSICAL),
+    /* Buttons 1-5 */
+    HID_USAGE_PAGE(HID_USAGE_PAGE_BUTTON),
+    HID_USAGE_MIN(1),
+    HID_USAGE_MAX(5),
+    HID_LOGICAL_MIN(0),
+    HID_LOGICAL_MAX(1),
+    HID_REPORT_SIZE(1),
+    HID_REPORT_COUNT(5),
+    HID_INPUT(HID_DATA | HID_VARIABLE | HID_ABSOLUTE),
+    /* Padding */
+    HID_REPORT_COUNT(3),
+    HID_INPUT(HID_CONSTANT),
+    /* X, Y position */
+    HID_USAGE_PAGE(HID_USAGE_PAGE_DESKTOP),
+    HID_USAGE(HID_USAGE_DESKTOP_X),
+    HID_USAGE(HID_USAGE_DESKTOP_Y),
+    HID_LOGICAL_MIN(0x81),
+    HID_LOGICAL_MAX(0x7f),
+    HID_REPORT_SIZE(8),
+    HID_REPORT_COUNT(2),
+    HID_INPUT(HID_DATA | HID_VARIABLE | HID_RELATIVE),
+    /* Vertical wheel */
+    HID_USAGE(HID_USAGE_DESKTOP_WHEEL),
+    HID_LOGICAL_MIN(0x81),
+    HID_LOGICAL_MAX(0x7f),
+    HID_REPORT_SIZE(8),
+    HID_REPORT_COUNT(1),
+    HID_INPUT(HID_DATA | HID_VARIABLE | HID_RELATIVE),
+    /* Horizontal wheel (AC Pan) */
+    HID_USAGE_PAGE_N(HID_USAGE_PAGE_CONSUMER, 2),
+    HID_USAGE_N(0x0238, 2),
+    HID_LOGICAL_MIN(0x81),
+    HID_LOGICAL_MAX(0x7f),
+    HID_REPORT_SIZE(8),
+    HID_REPORT_COUNT(1),
+    HID_INPUT(HID_DATA | HID_VARIABLE | HID_RELATIVE),
+    HID_COLLECTION_END,
+    HID_COLLECTION_END,
 };
 
 // HID report descriptor for the raw HID interface
